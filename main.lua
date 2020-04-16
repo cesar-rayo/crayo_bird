@@ -9,6 +9,7 @@ require './libs/stateMachine/BaseState'
 require './libs/stateMachine/TitleState'
 require './libs/stateMachine/PlayState'
 require './libs/stateMachine/ScoreState'
+require './libs/stateMachine/CountdownState'
 
 -- physical screen dimensions
 WINDOW_WIDTH = 1280
@@ -33,7 +34,7 @@ local GROUND_SCROLL_SPEED = 120
 local BACKGROUND_LOOPING_POINT = 413
 
 -- flag to pause the game
-local scrolling = true
+scrolling = true
 
 function love.load()
     love.graphics.setDefaultFilter('nearest', 'nearest')
@@ -59,13 +60,33 @@ function love.load()
     -- initialize state machine with all state-returning functions
     gStateMachine = StateMachine {
         ['title'] = function() return TitleState() end,
+        ['count'] = function() return CountdownState() end,
         ['play'] = function() return PlayState() end,
         ['score'] = function() return ScoreState() end,
     }
+
+    -- initialize our table of sounds
+    sounds = {
+        ['jump'] = love.audio.newSource('/sounds/jump.wav', 'static'),
+        ['explosion'] = love.audio.newSource('/sounds/explosion.wav', 'static'),
+        ['hurt'] = love.audio.newSource('/sounds/hurt.wav', 'static'),
+        ['score'] = love.audio.newSource('/sounds/score.wav', 'static'),
+
+        -- https://freesound.org/people/xsgianni/sounds/388079/
+        ['music'] = love.audio.newSource('/sounds/marios_way.mp3', 'static')
+    }
+
+    -- kick off music in loop
+    sounds['music']:setLooping(true)
+    sounds['music']:play()
+
     gStateMachine:change('title')
 
     -- initialize new element keysPressed
     love.keyboard.keysPressed = {}
+
+    -- initialize mouse input table
+    love.mouse.buttonsPressed = {}
 end
 
 function love.resize(w, h)
@@ -90,20 +111,33 @@ function love.keyboard.wasPressed(key)
     end
 end
 
-function love.update(dt)
-    -- scroll background by preset speed * dt, looping back to 0 after the looping point
-    backgroundScroll = (backgroundScroll + BACKGROUND_SCROLL_SPEED * dt) 
-        % BACKGROUND_LOOPING_POINT
+function love.mousepressed(x, y, button)
+    love.mouse.buttonsPressed[button] = true
+end
 
-    -- scroll ground by preset speed * dt, looping back to 0 after the screen width passes
-    groundScroll = (groundScroll + GROUND_SCROLL_SPEED * dt) 
-        % VIRTUAL_WIDTH
+function love.mouse.wasPressed(button)
+    return love.mouse.buttonsPressed[button]
+end
+
+function love.update(dt)
+
+    if scrolling then
+        -- scroll background by preset speed * dt, looping back to 0 after the looping point
+        backgroundScroll = (backgroundScroll + BACKGROUND_SCROLL_SPEED * dt) 
+            % BACKGROUND_LOOPING_POINT
+
+        -- scroll ground by preset speed * dt, looping back to 0 after the screen width passes
+        groundScroll = (groundScroll + GROUND_SCROLL_SPEED * dt) 
+            % VIRTUAL_WIDTH
+    end
 
     -- now, we just update the state machine, which defers to the right state
     gStateMachine:update(dt)
 
-    -- clear new element
+    -- clear new elements
     love.keyboard.keysPressed = {}
+    love.mouse.buttonsPressed = {}
+
 end
 
 function love.draw()
